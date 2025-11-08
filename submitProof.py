@@ -25,19 +25,19 @@ def merkle_assignment():
     tree = build_merkle(leaves)
 
     # Select a random leaf and create a proof for that leaf
-    random_leaf_index = 0 #TODO generate a random index from primes to claim (0 is already claimed)
+    # 0 is already claimed; choose a non-zero random index
+    random_leaf_index = random.randint(1, len(leaves) - 1)
     proof = prove_merkle(tree, random_leaf_index)
 
     # This is the same way the grader generates a challenge for sign_challenge()
-    challenge = ''.join(random.choice(string.ascii_letters) for i in range(32))
+    challenge = ''.join(random.choice(string.ascii_letters) for _ in range(32))
     # Sign the challenge to prove to the grader you hold the account
     addr, sig = sign_challenge(challenge)
 
     if sign_challenge_verify(challenge, addr, sig):
-        tx_hash = '0x'
-        # TODO, when you are ready to attempt to claim a prime (and pay gas fees),
-        #  complete this method and run your code with the following line un-commented
+        # When ready to actually claim (pay gas), this will send the transaction
         tx_hash = send_signed_msg(proof, leaves[random_leaf_index])
+        print(f"Submitted tx: {tx_hash}")
 
 
 def generate_primes(num_primes):
@@ -45,29 +45,31 @@ def generate_primes(num_primes):
         Function to generate the first 'num_primes' prime numbers
         returns list (with length n) of primes (as ints) in ascending order
     """
-    #TODO YOUR CODE HERE
     import math
     primes_list = []
     if num_primes <= 0:
         return primes_list
-    # 8192 个素数上界估计，给余量
+
     n = num_primes
     if n < 6:
         limit = 100000
     else:
-         limit = int(n * (math.log(n) + math.log(math.log(n))) + 10 * n) + 100
-         sieve = bytearray(b'\x01') * (limit + 1)
-         sieve[0:2] = b'\x00\x00'
+        # n(ln n + ln ln n) + 10n 作为上界近似
+        limit = int(n * (math.log(n) + math.log(math.log(n))) + 10 * n) + 100
+
+    sieve = bytearray(b'\x01') * (limit + 1)
+    sieve[0:2] = b'\x00\x00'
     for p in range(2, int(limit ** 0.5) + 1):
         if sieve[p]:
-            step = p
             start = p * p
-            sieve[start:limit + 1:step] = b'\x00' * (((limit - start) // step) + 1)
+            sieve[start:limit + 1:p] = b'\x00' * (((limit - start) // p) + 1)
+
     for i in range(2, limit + 1):
         if sieve[i]:
             primes_list.append(i)
             if len(primes_list) == num_primes:
                 break
+
     return primes_list
 
 
@@ -76,11 +78,7 @@ def convert_leaves(primes_list):
         Converts the leaves (primes_list) to bytes32 format
         returns list of primes where list entries are bytes32 encodings of primes_list entries
     """
-
-    # TODO YOUR CODE HERE
     return [int(p).to_bytes(32, 'big') for p in primes_list]
-
-    return []
 
 
 def build_merkle(leaves):
@@ -90,30 +88,32 @@ def build_merkle(leaves):
         tree[1] is the parent hashes, and so on until tree[n] which is the root hash
         the root hash produced by the "hash_pair" helper function
     """
-
-    #TODO YOUR CODE HERE
     from web3 import Web3
 
-def _hash_pair(a: bytes, b: bytes) -> bytes:
-    if a <= b:
-        x, y = a, b
-    else:
-        x, y = b, a
-    return Web3.keccak(x + y)
+    def _hash_pair(a: bytes, b: bytes) -> bytes:
+        # Sort pair by byte order, then keccak256
+        if a <= b:
+            x, y = a, b
+        else:
+            x, y = b, a
+        return Web3.keccak(x + y)
 
     tree = []
-    level = list(leaves)  # 叶子层直接使用 bytes32 的 prime
+    # 如果你的合约要求叶子先 keccak，请改为：level = [Web3.keccak(x) for x in leaves]
+    level = list(leaves)
     tree.append(level)
+
     while len(level) > 1:
-         cur = level
+        cur = level
         if len(cur) % 2 == 1:
             cur = cur + [cur[-1]]
         nxt = []
-     for i in range(0, len(cur), 2):
-             nxt.append(_hash_pair(cur[i], cur[i+1]))
-         tree.append(nxt)
+        for i in range(0, len(cur), 2):
+            nxt.append(_hash_pair(cur[i], cur[i + 1]))
+        tree.append(nxt)
         level = nxt
-     return tree
+
+    return tree
 
 
 def prove_merkle(merkle_tree, random_indx):
@@ -123,12 +123,11 @@ def prove_merkle(merkle_tree, random_indx):
         parent hash values, up to index -1 which is the list of the root hash.
         returns a proof of inclusion as list of values
     """
-   # TODO YOUR CODE HERE
     merkle_proof = []
     idx = int(random_indx)
     for lvl in range(0, len(merkle_tree) - 1):
-         level = merkle_tree[lvl]
-         sib_idx = idx ^ 1
+        level = merkle_tree[lvl]
+        sib_idx = idx ^ 1
         if sib_idx >= len(level):
             sibling = level[-1]
         else:
@@ -172,18 +171,17 @@ def send_signed_msg(proof, random_leaf):
     address, abi = get_contract_info(chain)
     w3 = connect_to(chain)
 
-   # TODO YOUR CODE HERE
-     contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
-     tx = contract.functions.submit(proof, random_leaf).build_transaction({
-    'from': acct.address,
-    'nonce': w3.eth.get_transaction_count(acct.address),
-    'gas': 300000,
-    'maxFeePerGas': w3.to_wei('2', 'gwei'),
-    'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
-    'chainId': w3.eth.chain_id,
-})
-     signed = w3.eth.account.sign_transaction(tx, private_key=acct.key)
-     tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction).hex()
+    contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
+    tx = contract.functions.submit(proof, random_leaf).build_transaction({
+        'from': acct.address,
+        'nonce': w3.eth.get_transaction_count(acct.address),
+        'gas': 300000,
+        'maxFeePerGas': w3.to_wei('2', 'gwei'),
+        'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
+        'chainId': w3.eth.chain_id,
+    })
+    signed = w3.eth.account.sign_transaction(tx, private_key=acct.key)
+    tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction).hex()
 
     return tx_hash
 
@@ -194,7 +192,7 @@ def connect_to(chain):
         Takes a chain ('avax' or 'bsc') and returns a web3 instance
         connected to that chain.
     """
-    if chain not in ['avax','bsc']:
+    if chain not in ['avax', 'bsc']:
         print(f"{chain} is not a valid option for 'connect_to()'")
         return None
     if chain == 'avax':
@@ -242,7 +240,7 @@ def sign_challenge_verify(challenge, addr, sig):
     """
     eth_encoded_msg = eth_account.messages.encode_defunct(text=challenge)
 
-    if eth_account.Account.recover_message(eth_encoded_msg, signature=sig) == addr:
+    if eth_account.Account.recover_message(eth_encoded_msg, signature= sig) == addr:
         print(f"Success: signed the challenge {challenge} using address {addr}!")
         return True
     else:
