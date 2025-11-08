@@ -172,12 +172,13 @@ def send_signed_msg(proof, random_leaf):
     w3 = connect_to(chain)
 
     contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
+    nonce = w3.eth.get_transaction_count(acct.address)
+    print(f"[send_signed_msg] from={acct.address} nonce={nonce}")
     tx = contract.functions.submit(proof, random_leaf).build_transaction({
         'from': acct.address,
-        'nonce': w3.eth.get_transaction_count(acct.address),
+        'nonce': nonce,
         'gas': 300000,
-        'maxFeePerGas': w3.to_wei('2', 'gwei'),
-        'maxPriorityFeePerGas': w3.to_wei('1', 'gwei'),
+        'gasPrice': w3.to_wei('2', 'gwei'),
         'chainId': w3.eth.chain_id,
     })
     signed = w3.eth.account.sign_transaction(tx, private_key=acct.key)
