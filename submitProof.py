@@ -46,29 +46,29 @@ def generate_primes(num_primes):
         returns list (with length n) of primes (as ints) in ascending order
     """
     #TODO YOUR CODE HERE
-import math
-primes_list = []
-if num_primes <= 0:
+    import math
+    primes_list = []
+    if num_primes <= 0:
+        return primes_list
+    # 8192 个素数上界估计，给余量
+    n = num_primes
+    if n < 6:
+        limit = 100000
+    else:
+         limit = int(n * (math.log(n) + math.log(math.log(n))) + 10 * n) + 100
+         sieve = bytearray(b'\x01') * (limit + 1)
+         sieve[0:2] = b'\x00\x00'
+    for p in range(2, int(limit ** 0.5) + 1):
+        if sieve[p]:
+            step = p
+            start = p * p
+            sieve[start:limit + 1:step] = b'\x00' * (((limit - start) // step) + 1)
+    for i in range(2, limit + 1):
+        if sieve[i]:
+            primes_list.append(i)
+            if len(primes_list) == num_primes:
+                break
     return primes_list
-# 8192 个素数上界估计，给余量
-n = num_primes
-if n < 6:
-    limit = 100000
-else:
-    limit = int(n * (math.log(n) + math.log(math.log(n))) + 10 * n) + 100
-sieve = bytearray(b'\x01') * (limit + 1)
-sieve[0:2] = b'\x00\x00'
-for p in range(2, int(limit ** 0.5) + 1):
-    if sieve[p]:
-        step = p
-        start = p * p
-        sieve[start:limit + 1:step] = b'\x00' * (((limit - start) // step) + 1)
-for i in range(2, limit + 1):
-    if sieve[i]:
-        primes_list.append(i)
-        if len(primes_list) == num_primes:
-            break
-return primes_list
 
 
 def convert_leaves(primes_list):
@@ -78,7 +78,7 @@ def convert_leaves(primes_list):
     """
 
     # TODO YOUR CODE HERE
-return [int(p).to_bytes(32, 'big') for p in primes_list]
+    return [int(p).to_bytes(32, 'big') for p in primes_list]
 
     return []
 
@@ -92,7 +92,7 @@ def build_merkle(leaves):
     """
 
     #TODO YOUR CODE HERE
-from web3 import Web3
+    from web3 import Web3
 
 def _hash_pair(a: bytes, b: bytes) -> bytes:
     if a <= b:
@@ -101,19 +101,19 @@ def _hash_pair(a: bytes, b: bytes) -> bytes:
         x, y = b, a
     return Web3.keccak(x + y)
 
-tree = []
-level = list(leaves)  # 叶子层直接使用 bytes32 的 prime
-tree.append(level)
-while len(level) > 1:
-    cur = level
-    if len(cur) % 2 == 1:
-        cur = cur + [cur[-1]]
-    nxt = []
-    for i in range(0, len(cur), 2):
-        nxt.append(_hash_pair(cur[i], cur[i+1]))
-    tree.append(nxt)
-    level = nxt
-return tree
+    tree = []
+    level = list(leaves)  # 叶子层直接使用 bytes32 的 prime
+    tree.append(level)
+    while len(level) > 1:
+         cur = level
+        if len(cur) % 2 == 1:
+            cur = cur + [cur[-1]]
+        nxt = []
+     for i in range(0, len(cur), 2):
+             nxt.append(_hash_pair(cur[i], cur[i+1]))
+         tree.append(nxt)
+        level = nxt
+     return tree
 
 
 def prove_merkle(merkle_tree, random_indx):
@@ -124,18 +124,18 @@ def prove_merkle(merkle_tree, random_indx):
         returns a proof of inclusion as list of values
     """
    # TODO YOUR CODE HERE
-merkle_proof = []
-idx = int(random_indx)
-for lvl in range(0, len(merkle_tree) - 1):
-    level = merkle_tree[lvl]
-    sib_idx = idx ^ 1
-    if sib_idx >= len(level):
-        sibling = level[-1]
-    else:
-        sibling = level[sib_idx]
-    merkle_proof.append(sibling)
-    idx //= 2
-return merkle_proof
+    merkle_proof = []
+    idx = int(random_indx)
+    for lvl in range(0, len(merkle_tree) - 1):
+         level = merkle_tree[lvl]
+         sib_idx = idx ^ 1
+        if sib_idx >= len(level):
+            sibling = level[-1]
+        else:
+            sibling = level[sib_idx]
+        merkle_proof.append(sibling)
+        idx //= 2
+    return merkle_proof
 
 
 def sign_challenge(challenge):
